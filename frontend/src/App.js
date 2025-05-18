@@ -9,16 +9,29 @@ function App() {
   const [filename, setFilename] = useState("");
   const [query, setQuery] = useState("");
   const [chatHistory, setChatHistory] = useState([]);
+  const [isPdfUploaded, setIsPdfUploaded] = useState(false);  // New state
 
   const handleFileChange = async (e) => {
     const selectedFile = e.target.files[0];
-    setFile(selectedFile);
-    if (selectedFile) {
+    if (selectedFile && selectedFile.type === "application/pdf") {
+      setFile(selectedFile);
+      setIsPdfUploaded(false); // Reset until upload completes
+
       const formData = new FormData();
       formData.append("file", selectedFile);
-      const res = await axios.post("http://localhost:8000/upload/", formData);
-      setFilename(res.data.filename);
-      alert("PDF uploaded successfully");
+
+      try {
+        const res = await axios.post("http://localhost:8000/upload/", formData);
+        setFilename(res.data.filename);
+        setIsPdfUploaded(true);  // Upload success
+        alert("PDF uploaded successfully");
+      } catch (error) {
+        alert("Failed to upload PDF");
+        setIsPdfUploaded(false);
+      }
+    } else {
+      alert("Please upload a valid PDF file");
+      setIsPdfUploaded(false);
     }
   };
 
@@ -33,16 +46,27 @@ function App() {
     formData.append("filename", filename);
     formData.append("query", query);
 
-    const res = await axios.post("http://localhost:8000/ask/", formData);
-
-    setChatHistory((prev) => {
-      const updated = [...prev];
-      updated[currentIndex] = {
-        question: query,
-        answer: res.data.answer,
-      };
-      return updated;
-    });
+    try {
+      const res = await axios.post("http://localhost:8000/ask/", formData);
+      setChatHistory((prev) => {
+        const updated = [...prev];
+        updated[currentIndex] = {
+          question: query,
+          answer: res.data.answer,
+        };
+        return updated;
+      });
+    } catch (error) {
+      alert("Failed to get answer");
+      setChatHistory((prev) => {
+        const updated = [...prev];
+        updated[currentIndex] = {
+          question: query,
+          answer: "Error fetching answer.",
+        };
+        return updated;
+      });
+    }
   };
 
   return (
@@ -75,6 +99,7 @@ function App() {
             setQuery={setQuery}
             askQuestion={askQuestion}
             handleFileChange={handleFileChange}
+            isPdfUploaded={isPdfUploaded}  
           />
         </div>
       </div>

@@ -25,27 +25,35 @@
     margin-bottom: 80px;
     padding: 20px;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
 }
 
 .chat-message {
     margin-bottom: 15px;
+    min-width: 150px;
     max-width: 70%;
     word-wrap: break-word;
     padding: 10px 15px;
     border-radius: 15px;
+    align-self: flex-start;
 }
 
 .chat-message.user {
     background-color: #2a2a2a;
     align-self: flex-end;
-    margin-left: auto;
     text-align: right;
 }
 
 .chat-message.bot {
     background-color: #333;
     align-self: flex-start;
-    margin-right: auto;
+    text-align: left;
+
+    /* Added/modified for alignment fix */
+    min-width: 250px;
+    width: fit-content;
+    display: inline-block;
 }
 
 .chat-footer {

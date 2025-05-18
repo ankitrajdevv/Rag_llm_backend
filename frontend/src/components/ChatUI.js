@@ -11,8 +11,8 @@ const ChatUI = () => {
 
         const newMessages = [
             ...messages,
-            { type: 'user', text: input },
-            { type: 'bot', text: 'Hello! 😊\nHow can I help you today?' }
+            { sender: 'user', text: input },
+            { sender: 'bot', text: 'Hello! 😊\nHow can I help you today?' }
         ];
         setMessages(newMessages);
         setInput('');
@@ -26,11 +26,8 @@ const ChatUI = () => {
 
             <main className="chat-container">
                 {messages.map((msg, index) => (
-                    <div
-                        key={index}
-                        className={`chat-message ${msg.type}`}
-                    >
-                        <p><strong>{msg.type === 'user' ? 'You' : 'Bot'}:</strong> {msg.text}</p>
+                    <div key={index} className={`chat-message ${msg.sender}`}>
+                        <span>{msg.text}</span>
                     </div>
                 ))}
             </main>

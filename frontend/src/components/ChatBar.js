@@ -1,10 +1,25 @@
 import React from "react";
 import { FaPlus, FaArrowUp } from "react-icons/fa";
+import "./ChatBar.css";
 
-const ChatBar = ({ query, setQuery, askQuestion, handleFileChange }) => {
+const ChatBar = ({
+  query,
+  setQuery,
+  askQuestion,
+  handleFileChange,
+  isPdfUploaded
+}) => {
+  const handleKeyPress = (e) => {
+    if (e.key === "Enter" && query.trim() && isPdfUploaded) {
+      askQuestion();
+    }
+  };
+
+  const isButtonDisabled = !query.trim() || !isPdfUploaded;
+
   return (
-    <div style={styles.chatBar}>
-      <label htmlFor="file-upload" style={styles.iconButton}>
+    <div className="chat-bar">
+      <label htmlFor="file-upload" className="icon-button" title="Upload PDF">
         <FaPlus />
       </label>
       <input
@@ -18,46 +33,21 @@ const ChatBar = ({ query, setQuery, askQuestion, handleFileChange }) => {
         type="text"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Ask a question..."
-        style={styles.input}
+        onKeyDown={handleKeyPress}
+        placeholder={isPdfUploaded ? "Ask a question..." : "Upload a PDF first"}
+        className="chat-input"
+        disabled={!isPdfUploaded}  // Disable input if no PDF uploaded
       />
-      <button onClick={askQuestion} style={styles.iconButton}>
+      <button
+        onClick={askQuestion}
+        className={`icon-button ${isButtonDisabled ? "disabled" : ""}`}
+        disabled={isButtonDisabled}
+        title={isButtonDisabled ? "Upload a PDF and enter question" : "Ask"}
+      >
         <FaArrowUp />
       </button>
     </div>
   );
-};
-
-const styles = {
-  chatBar: {
-    backgroundColor: "#2c2c2c",
-    borderRadius: "25px",
-    padding: "10px 15px",
-    display: "flex",
-    alignItems: "center",
-    position: "relative"
-  },
-  iconButton: {
-    backgroundColor: "#3a3a3a",
-    color: "#fff",
-    border: "none",
-    borderRadius: "50%",
-    width: "40px",
-    height: "40px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-    marginRight: "10px"
-  },
-  input: {
-    flex: 1,
-    backgroundColor: "transparent",
-    border: "none",
-    color: "#fff",
-    fontSize: "16px",
-    outline: "none"
-  }
 };
 
 export default ChatBar;
