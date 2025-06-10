@@ -1,15 +1,26 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import ChatBar from "./components/ChatBar";
 import Spinner from "./components/Spinner";
 import "./App.css";
 
 function App() {
+  // eslint-disable-next-line
   const [file, setFile] = useState(null);
   const [filename, setFilename] = useState("");
   const [query, setQuery] = useState("");
   const [chatHistory, setChatHistory] = useState([]);
   const [isPdfUploaded, setIsPdfUploaded] = useState(false);  // New state
+
+  // --- Add ref for auto scroll ---
+  const latestMsgRef = useRef(null);
+
+  useEffect(() => {
+    if (latestMsgRef.current) {
+      latestMsgRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [chatHistory]);
+  // ---
 
   const handleFileChange = async (e) => {
     const selectedFile = e.target.files[0];
@@ -77,7 +88,11 @@ function App() {
 
       <div className="chat-area">
         {chatHistory.map((item, index) => (
-          <div key={index} className="chat-pair">
+          <div
+            key={index}
+            className="chat-pair"
+            ref={index === chatHistory.length - 1 ? latestMsgRef : null}
+          >
             <div className="question-wrapper">
               <div className="question">{item.question}</div>
             </div>
@@ -99,7 +114,7 @@ function App() {
             setQuery={setQuery}
             askQuestion={askQuestion}
             handleFileChange={handleFileChange}
-            isPdfUploaded={isPdfUploaded}  
+            isPdfUploaded={isPdfUploaded}
           />
         </div>
       </div>
