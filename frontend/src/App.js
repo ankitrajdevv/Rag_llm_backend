@@ -10,9 +10,9 @@ function App() {
   const [filename, setFilename] = useState("");
   const [query, setQuery] = useState("");
   const [chatHistory, setChatHistory] = useState([]);
-  const [isPdfUploaded, setIsPdfUploaded] = useState(false);  // New state
+  const [isPdfUploaded, setIsPdfUploaded] = useState(false);
 
-  // --- Add ref for auto scroll ---
+  // For auto-scroll to latest answer
   const latestMsgRef = useRef(null);
 
   useEffect(() => {
@@ -20,13 +20,12 @@ function App() {
       latestMsgRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [chatHistory]);
-  // ---
 
   const handleFileChange = async (e) => {
     const selectedFile = e.target.files[0];
     if (selectedFile && selectedFile.type === "application/pdf") {
       setFile(selectedFile);
-      setIsPdfUploaded(false); // Reset until upload completes
+      setIsPdfUploaded(false);
 
       const formData = new FormData();
       formData.append("file", selectedFile);
@@ -34,7 +33,7 @@ function App() {
       try {
         const res = await axios.post("http://localhost:8000/upload/", formData);
         setFilename(res.data.filename);
-        setIsPdfUploaded(true);  // Upload success
+        setIsPdfUploaded(true);
         alert("PDF uploaded successfully");
       } catch (error) {
         alert("Failed to upload PDF");
@@ -80,6 +79,11 @@ function App() {
     }
   };
 
+  // Copy answer to clipboard
+  const handleCopy = (text) => {
+    navigator.clipboard.writeText(text);
+  };
+
   return (
     <div className="app-container">
       <div className="top-bar">
@@ -100,7 +104,16 @@ function App() {
               <Spinner />
             ) : (
               <div className="answer-wrapper">
-                <div className="answer">{item.answer}</div>
+                <div className="answer answer-with-copy">
+                  {item.answer}
+                  <button
+                    className="copy-btn"
+                    onClick={() => handleCopy(item.answer)}
+                    title="Copy answer"
+                  >
+                    <span role="img" aria-label="Copy to clipboard">📋</span> Copy
+                  </button>
+                </div>
               </div>
             )}
           </div>
