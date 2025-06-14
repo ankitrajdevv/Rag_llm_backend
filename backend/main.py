@@ -5,7 +5,7 @@ import os
 from dotenv import load_dotenv
 import google.generativeai as genai
 from auth import router as auth_router
-
+from fastapi import Query
 from db import lifespan, get_db
 from processing import extract_text, split_into_chunks, get_top_chunks, ask_llm
 
@@ -35,7 +35,12 @@ async def upload_pdf(file: UploadFile = File(...), db=Depends(get_db)):
     return {"filename": file.filename}
 
 @app.post("/ask/")
-async def ask_question(filename: str = Form(...), query: str = Form(...), db=Depends(get_db)):
+async def ask_question(
+    filename: str = Form(...),
+    query: str = Form(...),
+    username: str = Form(...),  # NEW
+    db=Depends(get_db)
+):
     file_path = os.path.join(UPLOAD_FOLDER, filename)
     text = extract_text(file_path)
     chunks = split_into_chunks(text)
@@ -45,6 +50,24 @@ async def ask_question(filename: str = Form(...), query: str = Form(...), db=Dep
     await db.questions.insert_one({
         "filename": filename,
         "query": query,
-        "answer": answer
+        "answer": answer,
+        "username": username  # NEW
     })
     return {"answer": answer}
+
+@app.get("/history/")
+async def get_history(
+    username: str = Query(...),
+    db=Depends(get_db)
+):
+    # Fetch all questions for this user, most recent first
+    cursor = db.questions.find({"username": username}).sort("_id", -1)
+    history = []
+    async for doc in cursor:
+        history.append({
+            "filename": doc.get("filename"),
+            "question": doc.get("query"),
+            "answer": doc.get("answer"),
+            "timestamp": str(doc.get("_id"))  # You can add proper timestamps if you want
+        })
+    return {"history": history}

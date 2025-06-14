@@ -4,7 +4,7 @@ import ChatBar from "./components/ChatBar";
 import Spinner from "./components/Spinner";
 import "./ChatApp.css";
 
-function App() {
+function ChatApp({ user, onLogout }) {
   // eslint-disable-next-line
   const [file, setFile] = useState(null);
   const [filename, setFilename] = useState("");
@@ -14,6 +14,23 @@ function App() {
 
   // For auto-scroll to latest answer
   const latestMsgRef = useRef(null);
+
+  // Fetch user's chat history when component mounts or user changes
+  useEffect(() => {
+    const fetchHistory = async () => {
+      if (user) {
+        try {
+          const res = await axios.get("http://localhost:8000/history/", {
+            params: { username: user },
+          });
+          setChatHistory(res.data.history.reverse());
+        } catch (err) {
+          setChatHistory([]);
+        }
+      }
+    };
+    fetchHistory();
+  }, [user]);
 
   useEffect(() => {
     if (latestMsgRef.current) {
@@ -55,6 +72,7 @@ function App() {
     const formData = new FormData();
     formData.append("filename", filename);
     formData.append("query", query);
+    formData.append("username", user);
 
     try {
       const res = await axios.post("http://localhost:8000/ask/", formData);
@@ -86,8 +104,39 @@ function App() {
 
   return (
     <div className="app-container">
-      <div className="top-bar">
-        <h2>RAG LLM</h2>
+      <div className="top-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h2 style={{ display: "inline-block" }}>RAG LLM</h2>
+        {user && (
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div className="user-info" style={{
+              color: "#90caf9",
+              fontWeight: "bold",
+              fontSize: "1.1em",
+              letterSpacing: "1px",
+              background: "#222d",
+              padding: "7px 16px",
+              borderRadius: "20px"
+            }}>{user}</div>
+            <button
+              onClick={onLogout}
+              style={{
+                background: "#23272f",
+                color: "#fff",
+                border: "none",
+                borderRadius: "12px",
+                padding: "7px 18px",
+                fontWeight: "bold",
+                cursor: "pointer",
+                fontSize: "1em",
+                transition: "background 0.2s"
+              }}
+              onMouseOver={e => e.currentTarget.style.background="#1976d2"}
+              onMouseOut={e => e.currentTarget.style.background="#23272f"}
+            >
+              Logout
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="chat-area">
@@ -135,4 +184,4 @@ function App() {
   );
 }
 
-export default App;
+export default ChatApp;

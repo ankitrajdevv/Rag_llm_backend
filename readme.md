@@ -15,7 +15,6 @@ pip install python-dotenv sentence-transformers faiss-cpu google-generativeai mo
 ```
 
 ### 3. Set Up Environment Variables
-
 Create a `.env` file in the root directory and add your Google API key:
 
 ```env
