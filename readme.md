@@ -11,7 +11,7 @@ git clone https://github.com/Amulya-biradar/RAG_LLM.git
 Install all necessary Python packages:
 
 ```bash
-pip install python-dotenv sentence-transformers faiss-cpu google-generativeai
+pip install python-dotenv sentence-transformers faiss-cpu google-generativeai motor passlib[bcrypt]
 ```
 
 ### 3. Set Up Environment Variables

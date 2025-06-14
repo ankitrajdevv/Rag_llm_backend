@@ -1,22 +1,23 @@
-import os
-import fitz  # PyMuPDF
-import numpy as np
-import faiss
-from fastapi import FastAPI, File, UploadFile, Form
+from fastapi import FastAPI, File, UploadFile, Form, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from sentence_transformers import SentenceTransformer
+import shutil
+import os
 from dotenv import load_dotenv
 import google.generativeai as genai
-import shutil
+from auth import router as auth_router
 
-# Load env variables
+from db import lifespan, get_db
+from processing import extract_text, split_into_chunks, get_top_chunks, ask_llm
+
 load_dotenv()
 api_key = os.getenv("GOOGLE_API_KEY")
 genai.configure(api_key=api_key)
 
-app = FastAPI()
+UPLOAD_FOLDER = "uploads"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Allow frontend to access backend
+app = FastAPI(lifespan=lifespan)
+app.include_router(auth_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -25,60 +26,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-UPLOAD_FOLDER = "uploads"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-# Function to extract text from uploaded PDF
-def extract_text(pdf_path):
-    text = ""
-    with fitz.open(pdf_path) as doc:
-        for page in doc:
-            text += page.get_text()
-    return text
-
-# Split text into chunks
-def split_into_chunks(text, max_length=300):
-    sentences = text.split(". ")
-    chunks = []
-    current_chunk = ""
-    for sentence in sentences:
-        if len(current_chunk) + len(sentence) < max_length:
-            current_chunk += sentence + ". "
-        else:
-            chunks.append(current_chunk.strip())
-            current_chunk = sentence + ". "
-    if current_chunk:
-        chunks.append(current_chunk.strip())
-    return chunks
-
 @app.post("/upload/")
-async def upload_pdf(file: UploadFile = File(...)):
+async def upload_pdf(file: UploadFile = File(...), db=Depends(get_db)):
     file_path = os.path.join(UPLOAD_FOLDER, file.filename)
     with open(file_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
+    await db.uploads.insert_one({"filename": file.filename})
     return {"filename": file.filename}
 
 @app.post("/ask/")
-async def ask_question(filename: str = Form(...), query: str = Form(...)):
+async def ask_question(filename: str = Form(...), query: str = Form(...), db=Depends(get_db)):
     file_path = os.path.join(UPLOAD_FOLDER, filename)
     text = extract_text(file_path)
     chunks = split_into_chunks(text)
-
-    embed_model = SentenceTransformer("all-MiniLM-L6-v2")
-    embeddings = embed_model.encode(chunks)
-    
-    dimension = embeddings.shape[1]
-    index = faiss.IndexFlatL2(dimension)
-    index.add(np.array(embeddings))
-
-    query_embedding = embed_model.encode([query])
-    _, indices = index.search(np.array(query_embedding), k=3)
-
-    top_chunks = [chunks[i] for i in indices[0]]
+    top_chunks = get_top_chunks(chunks, query)
     context = "\n".join(top_chunks)
-
-    prompt = f"Context:\n{context}\n\nQuestion: {query}\nAnswer:"
-    model = genai.GenerativeModel("gemini-1.5-flash")
-    response = model.generate_content(prompt)
-
-    return {"answer": response.text}
+    answer = ask_llm(context, query)
+    await db.questions.insert_one({
+        "filename": filename,
+        "query": query,
+        "answer": answer
+    })
+    return {"answer": answer}
