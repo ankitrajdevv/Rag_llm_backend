@@ -11,6 +11,7 @@ function ChatApp({ user, onLogout }) {
   const [query, setQuery] = useState("");
   const [chatHistory, setChatHistory] = useState([]);
   const [isPdfUploaded, setIsPdfUploaded] = useState(false);
+  const [speakingIndex, setSpeakingIndex] = useState(null);
 
   // For auto-scroll to latest answer
   const latestMsgRef = useRef(null);
@@ -102,6 +103,30 @@ function ChatApp({ user, onLogout }) {
     navigator.clipboard.writeText(text);
   };
 
+  // Speak answer using Web Speech API
+  const speakText = (text, idx) => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel(); // stop any ongoing speech
+      const utterance = new window.SpeechSynthesisUtterance(text);
+      utterance.rate = 1;
+      utterance.pitch = 1;
+      utterance.volume = 1;
+      utterance.onend = () => setSpeakingIndex(null);
+      setSpeakingIndex(idx);
+      window.speechSynthesis.speak(utterance);
+    } else {
+      alert("Speech synthesis not supported in your browser.");
+    }
+  };
+
+  // Stop speech synthesis
+  const stopSpeech = () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setSpeakingIndex(null);
+    }
+  };
+
   return (
     <div className="app-container">
       <div className="top-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -153,7 +178,10 @@ function ChatApp({ user, onLogout }) {
               <Spinner />
             ) : (
               <div className="answer-wrapper">
-                <div className="answer answer-with-copy">
+                <div
+                  className={`answer answer-with-copy${speakingIndex === index ? " speaking-answer" : ""}`}
+                  style={speakingIndex === index ? { background: "#314062" } : {}}
+                >
                   {item.answer}
                   <button
                     className="copy-btn"
@@ -162,6 +190,46 @@ function ChatApp({ user, onLogout }) {
                   >
                     <span role="img" aria-label="Copy to clipboard">📋</span> Copy
                   </button>
+                  <button
+                    className="speak-btn"
+                    onClick={() => speakText(item.answer, index)}
+                    title="Read aloud"
+                    style={{
+                      marginLeft: "10px",
+                      background: "#444",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "6px",
+                      padding: "4px 10px 4px 6px",
+                      fontSize: "0.93em",
+                      cursor: "pointer",
+                      opacity: 0.8,
+                      transition: "background 0.2s, opacity 0.2s",
+                    }}
+                  >
+                    <span role="img" aria-label="Speak">🔊</span> Speak
+                  </button>
+                  {speakingIndex === index && (
+                    <button
+                      className="speak-btn"
+                      onClick={stopSpeech}
+                      title="Stop speaking"
+                      style={{
+                        marginLeft: "5px",
+                        background: "#d9534f",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "6px",
+                        padding: "4px 10px 4px 6px",
+                        fontSize: "0.93em",
+                        cursor: "pointer",
+                        opacity: 0.8,
+                        transition: "background 0.2s, opacity 0.2s",
+                      }}
+                    >
+                      <span role="img" aria-label="Stop">⏹️</span> Stop
+                    </button>
+                  )}
                 </div>
               </div>
             )}
