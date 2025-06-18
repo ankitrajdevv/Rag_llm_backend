@@ -207,7 +207,7 @@ function ChatApp({ user, onLogout }) {
                       transition: "background 0.2s, opacity 0.2s",
                     }}
                   >
-                    <span role="img" aria-label="Speak">🔊</span> Speak
+                    <span role="img" aria-label="Speak">🔊</span>
                   </button>
                   {speakingIndex === index && (
                     <button
