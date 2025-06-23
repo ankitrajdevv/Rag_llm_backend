@@ -182,54 +182,33 @@ function ChatApp({ user, onLogout }) {
                   className={`answer answer-with-copy${speakingIndex === index ? " speaking-answer" : ""}`}
                   style={speakingIndex === index ? { background: "#314062" } : {}}
                 >
-                  {item.answer}
-                  <button
-                    className="copy-btn"
-                    onClick={() => handleCopy(item.answer)}
-                    title="Copy answer"
-                  >
-                    <span role="img" aria-label="Copy to clipboard">📋</span> Copy
-                  </button>
-                  <button
-                    className="speak-btn"
-                    onClick={() => speakText(item.answer, index)}
-                    title="Read aloud"
-                    style={{
-                      marginLeft: "10px",
-                      background: "#444",
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: "6px",
-                      padding: "4px 10px 4px 6px",
-                      fontSize: "0.93em",
-                      cursor: "pointer",
-                      opacity: 0.8,
-                      transition: "background 0.2s, opacity 0.2s",
-                    }}
-                  >
-                    <span role="img" aria-label="Speak">🔊</span>
-                  </button>
-                  {speakingIndex === index && (
+                  <div className="answer-text">{item.answer}</div>
+                  <div className="answer-actions">
                     <button
-                      className="speak-btn"
-                      onClick={stopSpeech}
-                      title="Stop speaking"
-                      style={{
-                        marginLeft: "5px",
-                        background: "#d9534f",
-                        color: "#fff",
-                        border: "none",
-                        borderRadius: "6px",
-                        padding: "4px 10px 4px 6px",
-                        fontSize: "0.93em",
-                        cursor: "pointer",
-                        opacity: 0.8,
-                        transition: "background 0.2s, opacity 0.2s",
-                      }}
+                      className="copy-btn"
+                      onClick={() => handleCopy(item.answer)}
+                      title="Copy answer"
                     >
-                      <span role="img" aria-label="Stop">⏹️</span> Stop
+                      <span role="img" aria-label="Copy to clipboard">📋</span> Copy
                     </button>
-                  )}
+                    {speakingIndex === index ? (
+                      <button
+                        className="speak-btn stop-btn"
+                        onClick={stopSpeech}
+                        title="Stop speaking"
+                      >
+                        <span role="img" aria-label="Stop">⏹️</span> Stop
+                      </button>
+                    ) : (
+                      <button
+                        className="speak-btn"
+                        onClick={() => speakText(item.answer, index)}
+                        title="Read aloud"
+                      >
+                        <span role="img" aria-label="Speak">🔊</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
