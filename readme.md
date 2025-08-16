@@ -22,3 +22,5 @@ GOOGLE_API_KEY=your_api_key_here
 MONGODB_DB
 MONGODB_URI
 ```
+
+uvicorn main:app --reload
