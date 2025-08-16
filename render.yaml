@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: rag-llm-backend
+    runtime: python3
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    region: oregon
+    branch: development
+    rootDir: .
+    envVars:
+      - key: GOOGLE_API_KEY
+        value: AIzaSyBGO0_V6EXzZt8qfd2OHcWZA4aOei7gB0Q
+      - key: MONGODB_URI
+        value: mongodb+srv://kumarankitverma5:test123@cluster0.bvgikdc.mongodb.net/Rag_llm?retryWrites=true&w=majority&appName=Cluster0
+      - key: MONGODB_DB
+        value: Rag_llm
+    healthCheckPath: /health
+    autoDeploy: true
