@@ -1,5 +1,5 @@
+print("FastAPI app is starting...")
 from fastapi import FastAPI
-
 from fastapi import File, UploadFile, Form, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import shutil
