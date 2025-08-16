@@ -1,26 +1,20 @@
-print("FastAPI app is starting...")
-
+# main.py
 import os
-import shutil
-from fastapi import FastAPI, File, UploadFile, Form, Depends, Query
+from fastapi import FastAPI, File, UploadFile, Form, Depends, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-import google.generativeai as genai
+from db import get_db, MongoDB, lifespan
 from auth import router as auth_router
-from db import get_db
 from processing import extract_text, split_into_chunks, get_top_chunks, ask_llm
+from motor.motor_asyncio import AsyncIOMotorGridFSBucket
 
 # Load environment variables
 load_dotenv()
-api_key = os.getenv("GOOGLE_API_KEY")
-genai.configure(api_key=api_key)
-
-# Upload folder
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Initialize FastAPI
-app = FastAPI()
+# Initialize FastAPI with lifespan for MongoDB
+app = FastAPI(lifespan=lifespan)
 app.include_router(auth_router)
 
 # CORS middleware
@@ -44,11 +38,17 @@ async def health():
 # Upload PDF
 @app.post("/upload/")
 async def upload_pdf(file: UploadFile = File(...), db=Depends(get_db)):
-    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
-    with open(file_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-    await db.uploads.insert_one({"filename": file.filename})
-    return {"filename": file.filename}
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Please upload a valid PDF file")
+    
+    # Use GridFSBucket for async file storage
+    bucket = AsyncIOMotorGridFSBucket(db)
+    file_id = await bucket.upload_from_stream(file.filename, file.file)
+    
+    # Save metadata in MongoDB collection
+    await db.uploads.insert_one({"filename": file.filename, "file_id": file_id})
+    
+    return {"status": "success", "filename": file.filename, "file_id": str(file_id)}
 
 # Ask question
 @app.post("/ask/")
@@ -58,26 +58,46 @@ async def ask_question(
     username: str = Form(...),
     db=Depends(get_db)
 ):
-    file_path = os.path.join(UPLOAD_FOLDER, filename)
-    text = extract_text(file_path)
+    # Retrieve file from GridFS
+    upload_doc = await db.uploads.find_one({"filename": filename})
+    if not upload_doc:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    bucket = AsyncIOMotorGridFSBucket(db)
+    stream = await bucket.open_download_stream(upload_doc["file_id"])
+    pdf_bytes = await stream.read()
+    
+    # Extract text from PDF bytes
+    import io, pdfplumber
+    text = ""
+    try:
+        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + "\n"
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading PDF: {e}")
+
+    # Split, embed, and query
     chunks = split_into_chunks(text)
     top_chunks = get_top_chunks(chunks, query)
     context = "\n".join(top_chunks)
     answer = ask_llm(context, query)
+
+    # Save question-answer in DB
     await db.questions.insert_one({
         "filename": filename,
         "query": query,
         "answer": answer,
         "username": username
     })
+
     return {"answer": answer}
 
 # Get history
 @app.get("/history/")
-async def get_history(
-    username: str = Query(...),
-    db=Depends(get_db)
-):
+async def get_history(username: str = Query(...), db=Depends(get_db)):
     cursor = db.questions.find({"username": username}).sort("_id", -1)
     history = []
     async for doc in cursor:
@@ -89,8 +109,8 @@ async def get_history(
         })
     return {"history": history}
 
-# Run app with dynamic port for Render
+# Run app
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 8000))  # Render sets PORT dynamically
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)

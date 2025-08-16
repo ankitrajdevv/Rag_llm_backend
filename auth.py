@@ -1,8 +1,8 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from db import get_db
 from passlib.context import CryptContext
- 
+
 router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -26,5 +26,4 @@ async def login(user: UserIn, db=Depends(get_db)):
     db_user = await db.users.find_one({"username": user.username})
     if not db_user or not pwd_context.verify(user.password, db_user["password"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    # For demo: just return username. For production, use JWT!
     return {"username": user.username}

@@ -3,8 +3,12 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 import faiss
 import google.generativeai as genai
+import os
+from dotenv import load_dotenv
 
-# Global model cache to avoid downloading on every request
+load_dotenv()
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+
 _embed_model = None
 
 def get_embed_model():
@@ -12,19 +16,6 @@ def get_embed_model():
     if _embed_model is None:
         _embed_model = SentenceTransformer("all-MiniLM-L6-v2")
     return _embed_model
-
-def extract_text(pdf_path):
-    text = ""
-    try:
-        with pdfplumber.open(pdf_path) as pdf:
-            for page in pdf.pages:
-                page_text = page.extract_text()
-                if page_text:
-                    text += page_text + "\n"
-    except Exception as e:
-        print(f"Error extracting text: {e}")
-        return ""
-    return text
 
 def split_into_chunks(text, max_length=300):
     sentences = text.split(". ")
@@ -42,7 +33,7 @@ def split_into_chunks(text, max_length=300):
 
 def get_top_chunks(chunks, query, embed_model=None, top_k=3):
     if embed_model is None:
-        embed_model = get_embed_model()  # Use cached model
+        embed_model = get_embed_model()
     embeddings = embed_model.encode(chunks)
     dimension = embeddings.shape[1]
     index = faiss.IndexFlatL2(dimension)
@@ -56,3 +47,18 @@ def ask_llm(context, query):
     model = genai.GenerativeModel("gemini-1.5-flash")
     response = model.generate_content(prompt)
     return response.text
+
+def extract_text(pdf_path: str) -> str:
+    """
+    Extract text from PDF file using pdfplumber.
+    """
+    text = ""
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + "\n"
+    except Exception as e:
+        print(f"Error extracting text from {pdf_path}: {e}")
+    return text
