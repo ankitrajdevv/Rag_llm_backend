@@ -4,6 +4,15 @@ import numpy as np
 import faiss
 import google.generativeai as genai
 
+# Global model cache to avoid downloading on every request
+_embed_model = None
+
+def get_embed_model():
+    global _embed_model
+    if _embed_model is None:
+        _embed_model = SentenceTransformer("all-MiniLM-L6-v2")
+    return _embed_model
+
 def extract_text(pdf_path):
     text = ""
     with fitz.open(pdf_path) as doc:
@@ -27,7 +36,7 @@ def split_into_chunks(text, max_length=300):
 
 def get_top_chunks(chunks, query, embed_model=None, top_k=3):
     if embed_model is None:
-        embed_model = SentenceTransformer("all-MiniLM-L6-v2")
+        embed_model = get_embed_model()  # Use cached model
     embeddings = embed_model.encode(chunks)
     dimension = embeddings.shape[1]
     index = faiss.IndexFlatL2(dimension)
