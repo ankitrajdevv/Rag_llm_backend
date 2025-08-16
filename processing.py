@@ -1,4 +1,4 @@
-import fitz  # PyMuPDF
+import pdfplumber
 from sentence_transformers import SentenceTransformer
 import numpy as np
 import faiss
@@ -15,9 +15,15 @@ def get_embed_model():
 
 def extract_text(pdf_path):
     text = ""
-    with fitz.open(pdf_path) as doc:
-        for page in doc:
-            text += page.get_text()
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + "\n"
+    except Exception as e:
+        print(f"Error extracting text: {e}")
+        return ""
     return text
 
 def split_into_chunks(text, max_length=300):
