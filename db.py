@@ -16,14 +16,18 @@ mongodb = MongoDB()
 
 @asynccontextmanager
 async def lifespan(app):
+    print("Starting lifespan event...")
     try:
-        mongodb.client = AsyncIOMotorClient(MONGODB_URI)
+        mongodb.client = AsyncIOMotorClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
         mongodb.db = mongodb.client[DB_NAME]
         await mongodb.db.command("ping")
         print("✅ MongoDB connection successful!")
     except Exception as e:
         print(f"❌ MongoDB connection failed: {e}")
-        raise e
+        # Allow app to start even if DB is down
+        yield
+        mongodb.client.close()
+        return
     yield
     mongodb.client.close()
 
