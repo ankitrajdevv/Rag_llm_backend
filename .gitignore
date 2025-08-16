@@ -1,2 +1,36 @@
+# Environment variables
 .env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Uploads folder (since we're storing in database now)
+uploads/
 backend/uploads/
+
+# Distribution files
+dist/
+build/
+*.egg-info/
+
+# Vercel
+.vercel

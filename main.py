@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, Form, Depends
+from fastapi import FastAPI, File, UploadFile, Form, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import shutil
 import os
@@ -28,10 +28,14 @@ app.add_middleware(
 
 @app.post("/upload/")
 async def upload_pdf(file: UploadFile = File(...), db=Depends(get_db)):
-    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
-    with open(file_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-    await db.uploads.insert_one({"filename": file.filename})
+    # Read file content into memory for processing
+    file_content = await file.read()
+    
+    # Store file content in database instead of local storage
+    await db.uploads.insert_one({
+        "filename": file.filename,
+        "content": file_content
+    })
     return {"filename": file.filename}
 
 @app.post("/ask/")
@@ -41,8 +45,13 @@ async def ask_question(
     username: str = Form(...),
     db=Depends(get_db)
 ):
-    file_path = os.path.join(UPLOAD_FOLDER, filename)
-    text = extract_text(file_path)
+    # Retrieve file content from database
+    file_doc = await db.uploads.find_one({"filename": filename})
+    if not file_doc:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    file_content = file_doc["content"]
+    text = extract_text(file_content)
     chunks = split_into_chunks(text)
     top_chunks = get_top_chunks(chunks, query)
     context = "\n".join(top_chunks)

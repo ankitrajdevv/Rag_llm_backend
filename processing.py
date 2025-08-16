@@ -4,11 +4,13 @@ import numpy as np
 import faiss
 import google.generativeai as genai
 
-def extract_text(pdf_path):
+def extract_text(pdf_content):
+    """Extract text from PDF content (bytes)"""
     text = ""
-    with fitz.open(pdf_path) as doc:
-        for page in doc:
-            text += page.get_text()
+    doc = fitz.open(stream=pdf_content, filetype="pdf")
+    for page in doc:
+        text += page.get_text()
+    doc.close()
     return text
 
 def split_into_chunks(text, max_length=300):
