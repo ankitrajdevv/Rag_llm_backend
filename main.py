@@ -13,7 +13,8 @@ load_dotenv()
 api_key = os.getenv("GOOGLE_API_KEY")
 genai.configure(api_key=api_key)
 
-UPLOAD_FOLDER = "uploads"
+# Use /tmp for Vercel, uploads for local development
+UPLOAD_FOLDER = "/tmp" if os.getenv("VERCEL") else "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 app = FastAPI(lifespan=lifespan)
@@ -28,15 +29,10 @@ app.add_middleware(
 
 @app.post("/upload/")
 async def upload_pdf(file: UploadFile = File(...), db=Depends(get_db)):
-    # Read file content into memory for processing
-    file_content = await file.read()
-    
-    # Store file content in database as binary data
-    await db.uploads.insert_one({
-        "filename": file.filename,
-        "content": file_content,
-        "content_type": file.content_type
-    })
+    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+    with open(file_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+    await db.uploads.insert_one({"filename": file.filename})
     return {"filename": file.filename}
 
 @app.post("/ask/")
@@ -46,14 +42,19 @@ async def ask_question(
     username: str = Form(...),
     db=Depends(get_db)
 ):
-    # Retrieve file content from database
-    file_doc = await db.uploads.find_one({"filename": filename})
-    if not file_doc:
-        raise HTTPException(status_code=404, detail="File not found")
-    
-    file_content = file_doc["content"]
-    text = extract_text(file_content)
+    file_path = os.path.join(UPLOAD_FOLDER, filename)
+    text = extract_text(file_path)
     chunks = split_into_chunks(text)
+    top_chunks = get_top_chunks(chunks, query)
+    context = "\n".join(top_chunks)
+    answer = ask_llm(context, query)
+    await db.questions.insert_one({
+        "filename": filename,
+        "query": query,
+        "answer": answer,
+        "username": username
+    })
+    return {"answer": answer}
     top_chunks = get_top_chunks(chunks, query)
     context = "\n".join(top_chunks)
     answer = ask_llm(context, query)

@@ -3,45 +3,13 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 import faiss
 import google.generativeai as genai
-import tempfile
-import os
 
-def extract_text(pdf_content):
-    """Extract text from PDF content (bytes)"""
+def extract_text(pdf_path):
     text = ""
-    try:
-        # Ensure we have bytes object
-        if isinstance(pdf_content, str):
-            pdf_content = pdf_content.encode()
-        
-        # Try to open PDF from memory stream first
-        try:
-            doc = fitz.open(stream=pdf_content, filetype="pdf")
-            for page in doc:
-                text += page.get_text()
-            doc.close()
-            return text
-        except:
-            # Fallback: Save to temporary file and open
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
-                temp_file.write(pdf_content)
-                temp_file_path = temp_file.name
-            
-            try:
-                doc = fitz.open(temp_file_path)
-                for page in doc:
-                    text += page.get_text()
-                doc.close()
-                return text
-            finally:
-                # Clean up temporary file
-                if os.path.exists(temp_file_path):
-                    os.unlink(temp_file_path)
-                    
-    except Exception as e:
-        print(f"Error extracting text: {e}")
-        # If PDF processing fails, return empty string to avoid breaking the app
-        return ""
+    with fitz.open(pdf_path) as doc:
+        for page in doc:
+            text += page.get_text()
+    return text
 
 def split_into_chunks(text, max_length=300):
     sentences = text.split(". ")
