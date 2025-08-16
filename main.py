@@ -31,10 +31,11 @@ async def upload_pdf(file: UploadFile = File(...), db=Depends(get_db)):
     # Read file content into memory for processing
     file_content = await file.read()
     
-    # Store file content in database instead of local storage
+    # Store file content in database as binary data
     await db.uploads.insert_one({
         "filename": file.filename,
-        "content": file_content
+        "content": file_content,
+        "content_type": file.content_type
     })
     return {"filename": file.filename}
 
