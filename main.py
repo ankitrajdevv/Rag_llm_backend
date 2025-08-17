@@ -1,26 +1,23 @@
 # main.py
 import os
-import io
 from fastapi import FastAPI, File, UploadFile, Form, Depends, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from db import get_db, lifespan
+from db import get_db, MongoDB, lifespan
 from auth import router as auth_router
-from processing import split_into_chunks, get_top_chunks, ask_llm
+from processing import extract_text, split_into_chunks, get_top_chunks, ask_llm
 from motor.motor_asyncio import AsyncIOMotorGridFSBucket
-import pdfplumber
 
 # Load environment variables
 load_dotenv()
-
-# Create uploads folder (not used with GridFS, but safe to keep)
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Initialize FastAPI with lifespan for MongoDB
 app = FastAPI(lifespan=lifespan)
+app.include_router(auth_router)
 
-# Enable open CORS for all origins
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -28,9 +25,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Include authentication routes
-app.include_router(auth_router)
 
 # Health endpoints
 @app.get("/")
@@ -47,11 +41,11 @@ async def upload_pdf(file: UploadFile = File(...), db=Depends(get_db)):
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Please upload a valid PDF file")
     
-    # Store file in MongoDB GridFS
+    # Use GridFSBucket for async file storage
     bucket = AsyncIOMotorGridFSBucket(db)
     file_id = await bucket.upload_from_stream(file.filename, file.file)
     
-    # Save metadata in MongoDB
+    # Save metadata in MongoDB collection
     await db.uploads.insert_one({"filename": file.filename, "file_id": file_id})
     
     return {"status": "success", "filename": file.filename, "file_id": str(file_id)}
@@ -73,7 +67,8 @@ async def ask_question(
     stream = await bucket.open_download_stream(upload_doc["file_id"])
     pdf_bytes = await stream.read()
     
-    # Extract text from PDF
+    # Extract text from PDF bytes
+    import io, pdfplumber
     text = ""
     try:
         with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
@@ -90,7 +85,7 @@ async def ask_question(
     context = "\n".join(top_chunks)
     answer = ask_llm(context, query)
 
-    # Save Q&A in MongoDB
+    # Save question-answer in DB
     await db.questions.insert_one({
         "filename": filename,
         "query": query,
@@ -100,7 +95,7 @@ async def ask_question(
 
     return {"answer": answer}
 
-# Get user history
+# Get history
 @app.get("/history/")
 async def get_history(username: str = Query(...), db=Depends(get_db)):
     cursor = db.questions.find({"username": username}).sort("_id", -1)
@@ -114,7 +109,7 @@ async def get_history(username: str = Query(...), db=Depends(get_db)):
         })
     return {"history": history}
 
-# Run app (optional; Render uses uvicorn command)
+# Run app
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
