@@ -23,15 +23,15 @@ async def lifespan(app: FastAPI):
         await mongodb.db.command("ping")
         print("✅ MongoDB connected!")
     except Exception as e:
-        raise RuntimeError("MongoDB not initialized") from e
+        raise RuntimeError("❌ MongoDB not initialized") from e
     try:
         yield
     finally:
         if mongodb.client:
             mongodb.client.close()
-            print("MongoDB connection closed.")
+            print("🔌 MongoDB connection closed.")
 
 def get_db():
     if mongodb.db is None:
-        raise RuntimeError("Database not initialized")
+        raise RuntimeError("❌ Database not initialized")
     return mongodb.db
