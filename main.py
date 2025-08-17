@@ -13,8 +13,8 @@ load_dotenv()
 api_key = os.getenv("GOOGLE_API_KEY")
 genai.configure(api_key=api_key)
 
-# Use /tmp for Vercel, uploads for local development
-UPLOAD_FOLDER = "/tmp" if os.getenv("VERCEL") else "uploads"
+# Use uploads folder for persistent storage on Render
+UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 app = FastAPI(lifespan=lifespan)
@@ -26,6 +26,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/")
+async def health_check():
+    return {"status": "healthy", "message": "RAG LLM Backend is running"}
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 @app.post("/upload/")
 async def upload_pdf(file: UploadFile = File(...), db=Depends(get_db)):
@@ -45,16 +53,6 @@ async def ask_question(
     file_path = os.path.join(UPLOAD_FOLDER, filename)
     text = extract_text(file_path)
     chunks = split_into_chunks(text)
-    top_chunks = get_top_chunks(chunks, query)
-    context = "\n".join(top_chunks)
-    answer = ask_llm(context, query)
-    await db.questions.insert_one({
-        "filename": filename,
-        "query": query,
-        "answer": answer,
-        "username": username
-    })
-    return {"answer": answer}
     top_chunks = get_top_chunks(chunks, query)
     context = "\n".join(top_chunks)
     answer = ask_llm(context, query)
