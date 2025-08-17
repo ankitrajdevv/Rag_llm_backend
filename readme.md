@@ -11,7 +11,7 @@ git clone https://github.com/Amulya-biradar/RAG_LLM.git
 Install all necessary Python packages:
 
 ```bash
-pip install python-dotenv sentence-transformers faiss-cpu google-generativeai motor passlib[bcrypt]
+pip install -r requirements.txt
 ```
 
 ### 3. Set Up Environment Variables
@@ -23,4 +23,6 @@ MONGODB_DB
 MONGODB_URI
 ```
 
-uvicorn main:app --reload
+Start server: uvicorn main:app --reload
+
+use test branch.
