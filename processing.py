@@ -1,90 +1,64 @@
-import io
-import faiss
-import numpy as np
+import pdfplumber
 from sentence_transformers import SentenceTransformer
+import numpy as np
+import faiss
 import google.generativeai as genai
 import os
+from dotenv import load_dotenv
 
-# -----------------------------
-# Global model + FAISS cache
-# -----------------------------
-# Load embedding model ONCE (cold start only once per container)
-print("[INIT] Loading embedding model...")
-embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+load_dotenv()
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
-# Gemini client (global)
-genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
-gemini_model = genai.GenerativeModel("gemini-pro")
+_embed_model = None
 
-# In-memory FAISS indexes {file_id: (index, chunks)}
-faiss_indexes = {}
+def get_embed_model():
+    global _embed_model
+    if _embed_model is None:
+        _embed_model = SentenceTransformer("all-MiniLM-L6-v2")
+    return _embed_model
 
-
-# -----------------------------
-# Utils
-# -----------------------------
-def extract_text_from_bytes(pdf_bytes: bytes) -> str:
-    """Extract text from PDF bytes using pdfplumber."""
-    import pdfplumber
-
-    text = []
-    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-        for page in pdf.pages:
-            page_text = page.extract_text()
-            if page_text:
-                text.append(page_text)
-    return "\n".join(text)
-
-
-def split_into_chunks(text: str, chunk_size: int = 500, overlap: int = 50):
-    """Split text into chunks with overlap."""
-    words = text.split()
+def split_into_chunks(text, max_length=300):
+    sentences = text.split(". ")
     chunks = []
-    i = 0
-    while i < len(words):
-        chunk = words[i : i + chunk_size]
-        chunks.append(" ".join(chunk))
-        i += chunk_size - overlap
+    current_chunk = ""
+    for sentence in sentences:
+        if len(current_chunk) + len(sentence) < max_length:
+            current_chunk += sentence + ". "
+        else:
+            chunks.append(current_chunk.strip())
+            current_chunk = sentence + ". "
+    if current_chunk:
+        chunks.append(current_chunk.strip())
     return chunks
 
-
-def build_index_for_file(file_id: str, chunks: list[str]):
-    """Build and cache FAISS index for a given file."""
-    embeddings = embedding_model.encode(chunks, convert_to_numpy=True)
+def get_top_chunks(chunks, query, embed_model=None, top_k=3):
+    if embed_model is None:
+        embed_model = get_embed_model()
+    embeddings = embed_model.encode(chunks)
     dimension = embeddings.shape[1]
     index = faiss.IndexFlatL2(dimension)
-    index.add(embeddings)
-    faiss_indexes[file_id] = (index, chunks)
-    print(f"[CACHE] Built FAISS index for {file_id}, chunks={len(chunks)}")
+    index.add(np.array(embeddings))
+    query_embedding = embed_model.encode([query])
+    _, indices = index.search(np.array(query_embedding), k=top_k)
+    return [chunks[i] for i in indices[0]]
 
+def ask_llm(context, query):
+    prompt = f"Context:\n{context}\n\nQuestion: {query}\nAnswer:"
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    response = model.generate_content(prompt)
+    return response.text
 
-def ensure_index_for_file(file_id: str, pdf_bytes: bytes = None):
-    """Ensure FAISS index exists (build from bytes if missing)."""
-    if file_id in faiss_indexes:
-        return faiss_indexes[file_id]
-
-    if pdf_bytes:
-        text = extract_text_from_bytes(pdf_bytes)
-        chunks = split_into_chunks(text)
-        build_index_for_file(file_id, chunks)
-        return faiss_indexes[file_id]
-
-    raise ValueError(f"No cached index and no pdf_bytes provided for {file_id}")
-
-
-def get_top_chunks(file_id: str, query: str, k: int = 5):
-    """Return top-k matching chunks from FAISS."""
-    if file_id not in faiss_indexes:
-        raise ValueError(f"No FAISS index for {file_id}")
-
-    index, chunks = faiss_indexes[file_id]
-    query_emb = embedding_model.encode([query], convert_to_numpy=True)
-    D, I = index.search(query_emb, k)
-    return [chunks[i] for i in I[0] if i < len(chunks)]
-
-
-def ask_llm(context: str, query: str) -> str:
-    """Call Gemini with context + query."""
-    prompt = f"Answer the question based on the following context:\n\n{context}\n\nQuestion: {query}"
-    response = gemini_model.generate_content(prompt)
-    return response.text.strip()
+def extract_text(pdf_path: str) -> str:
+    """
+    Extract text from PDF file using pdfplumber.
+    """
+    text = ""
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + "\n"
+    except Exception as e:
+        print(f"Error extracting text from {pdf_path}: {e}")
+    return text
