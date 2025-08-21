@@ -7,12 +7,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorGridFSBucket
 from bson import ObjectId
-import pdfplumber
 
 # Local imports
 from db import get_db, lifespan
 from auth import router as auth_router
-from processing import split_into_chunks, get_top_chunks, ask_llm
+from processing import split_into_chunks, get_top_chunks, ask_llm, extract_text
 
 # -----------------------------
 # Setup
@@ -107,14 +106,8 @@ async def ask_question(
         if not pdf_bytes:
             raise HTTPException(status_code=400, detail="Uploaded PDF is empty")
 
-        # 4. Extract text
-        text = ""
-        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-            for i, page in enumerate(pdf.pages):
-                page_text = page.extract_text()
-                if page_text:
-                    text += page_text + "\n"
-
+        # 4. Extract text (centralized in processing.py)
+        text = extract_text(io.BytesIO(pdf_bytes))
         if not text.strip():
             raise HTTPException(status_code=400, detail="PDF has no readable text")
 
@@ -168,12 +161,3 @@ async def get_history(username: str = Query(...), db=Depends(get_db)):
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to fetch history: {e}")
-
-# -----------------------------
-# Run locally
-# -----------------------------
-# if __name__ == "__main__":
-#     import uvicorn
-#     port = int(os.environ.get("PORT", 8000))
-#     print(f"[SERVER] Starting on port {port}")
-#     uvicorn.run("main:app", host="0.0.0.0", port=port)
